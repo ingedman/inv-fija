@@ -15,7 +15,7 @@ class ORM_Model {
 	private $model_label         = '';
 	private $model_label_plural  = '';
 	private $model_order_by      = '';
-	private $model_campo_id      = '';
+	private $model_campo_id      = array();
 	private $model_got_relations = false;
 	private $model_page_results  = 15;
 	private $model_fields        = array();
@@ -137,10 +137,6 @@ class ORM_Model {
 		{
 			return '';
 		}
-		else if (count($arr_key) == 1)
-		{
-			return $arr_key[0];
-		}
 		else
 		{
 			return $arr_key;
@@ -150,19 +146,12 @@ class ORM_Model {
 
 	public function get_model_id()
 	{
-		if (!is_array($this->model_campo_id))
+		$arr_id = array();
+		foreach ($this->model_campo_id as $campo)
 		{
-			return $this->{$this->model_campo_id};
+			array_push($arr_id, $this->{$campo});
 		}
-		else
-		{
-			$arr_id = array();
-			foreach ($this->model_campo_id as $campo)
-			{
-				array_push($arr_id, $this->{$campo});
-			}
-			return implode('~', $arr_id);
-		}
+		return implode('~', $arr_id);
 	}
 
 
@@ -205,7 +194,7 @@ class ORM_Model {
 		$reglas .= ($field->get_es_obligatorio() and !$field->get_es_autoincrement()) ? '|required' : '';
 		$reglas .= ($field->get_tipo() == 'int')  ? '|integer' : '';
 		$reglas .= ($field->get_tipo() == 'real') ? '|numeric' : '';
-		$reglas .= ($field->get_es_unico() AND !$field->get_es_id()) ? '|edit_unique['. $this->model_tabla . '.' . $field->get_nombre_bd() . '.' . $this->{$this->model_campo_id} . ']' : '';
+		//$reglas .= ($field->get_es_unico() AND !$field->get_es_id()) ? '|edit_unique['. $this->model_tabla . '.' . $field->get_nombre_bd() . '.' . $this->{$this->model_campo_id} . ']' : '';
 
 		if ($field->get_tipo() == 'has_many')
 		{
@@ -393,6 +382,28 @@ class ORM_Model {
 			}
 		}
 
+		// selecciona los campos a mostrar
+		foreach ($this->model_fields as $field_name => $field_data)
+		{
+			if ($field_data->get_tipo() == 'has_one')
+			{
+				$a_rel = $field_data->get_relation();
+				$m_rel = new $a_rel['model'];
+				$nom_tabla_join = $m_rel->get_model_tabla();
+				$nom_campo1 = $this->model_tabla . '.' . (array_key_exists('field', $a_rel) ? $a_rel['field'] : $field_name);
+				$nom_campo2 = $m_rel->get_model_tabla() . '.' . 'id';
+				$this->db->join($m_rel->get_model_tabla(), $nom_campo1 . '=' . $nom_campo2, 'left');
+			}
+			else if ($field_data->get_tipo() == 'has_many')
+			{
+
+			}
+			else
+			{
+				$this->db->select($this->model_tabla . '.' . $field_name);
+			}
+		}
+
 		if ($tipo == 'first')
 		{
 			$rs = $this->db->get($this->model_tabla)->row_array();
@@ -457,18 +468,13 @@ class ORM_Model {
 	public function find_id($id = 0)
 	{
 		$arr_condiciones = array();
-		if (!is_array($this->model_campo_id))
+
+		$arr_val_id = explode('~', $id);
+		foreach($this->model_campo_id as $i => $campo_id)
 		{
-			$arr_condiciones[$this->model_campo_id] = $id;
+			$arr_condiciones[$campo_id] = (is_null($id)) ? '' : $arr_val_id[$i];
 		}
-		else
-		{
-			$arr_val_id = explode('~', $id);
-			foreach($this->model_campo_id as $i => $campo_id)
-			{
-				$arr_condiciones[$campo_id] = (is_null($id)) ? '' : $arr_val_id[$i];
-			}
-		}
+
 		$this->find('first', array('conditions' => $arr_condiciones));
 	}
 
@@ -501,17 +507,12 @@ class ORM_Model {
 
 				$arr_rs = array();
 				$arr_where = array();
-				if (!is_array($this->model_campo_id))
+
+				foreach ($this->model_campo_id as $i => $campo_key)
 				{
-					$arr_where[$arr_rel['id_one_table']] = $this->get_model_id();
+					$arr_where[$arr_rel['id_one_table'][$i]] = $this->$campo_key;
 				}
-				else
-				{
-					foreach ($this->model_campo_id as $i => $campo_key)
-					{
-						$arr_where[$arr_rel['id_one_table'][$i]] = $this->$campo_key;
-					}
-				}
+
 				$rs = $this->db->select($arr_rel['id_many_table'])->get_where($arr_rel['join_table'], $arr_where)->result_array();
 				foreach($rs as $val)
 				{
@@ -528,7 +529,7 @@ class ORM_Model {
 				$class = $arr_rel['model'];
 				$obj = new $class();
 
-				$obj->find('all', array('conditions' => array(is_array($obj->get_model_campo_id()) ? implode("+'~'+", $obj->get_model_campo_id()) : $obj->get_model_campo_id() => $arr_rs)), FALSE);
+				$obj->find('all', array('conditions' => array(implode("+'~'+", $obj->get_model_campo_id()) => $arr_rs)), FALSE);
 
 				$arr_rel['data'] = $obj;
 				$this->model_fields[$campo]->set_relation($arr_rel);
