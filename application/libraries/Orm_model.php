@@ -353,11 +353,11 @@ class ORM_Model {
 			{
 				if (is_array($valor))
 				{
-					(count($valor) == 0) ? $this->db->where($campo, '') : $this->db->where_in($campo, $valor);
+					(count($valor) == 0) ? $this->db->where($this->model_tabla . '.' . $campo, '') : $this->db->where_in($this->model_tabla . '.' . $campo, $valor);
 				}
 				else
 				{
-					$this->db->where($campo, $valor);
+					$this->db->where($this->model_tabla . '.' . $campo, $valor);
 				}
 			}
 		}
@@ -390,9 +390,12 @@ class ORM_Model {
 				$a_rel = $field_data->get_relation();
 				$m_rel = new $a_rel['model'];
 				$nom_tabla_join = $m_rel->get_model_tabla();
-				$nom_campo1 = $this->model_tabla . '.' . (array_key_exists('field', $a_rel) ? $a_rel['field'] : $field_name);
-				$nom_campo2 = $m_rel->get_model_tabla() . '.' . 'id';
+				$nom_campo1 = $this->model_tabla . '.' . (array_key_exists('join_field', $a_rel) ? $a_rel['join_field'] : $field_name);
+				$arr_id = $m_rel->get_model_campo_id();
+				$nom_campo2 = $m_rel->get_model_tabla() . '.' . $arr_id[0];
+
 				$this->db->join($m_rel->get_model_tabla(), $nom_campo1 . '=' . $nom_campo2, 'left');
+				$this->db->select($m_rel->get_model_tabla() . '.app as ' . $field_name);
 			}
 			else if ($field_data->get_tipo() == 'has_many')
 			{
@@ -588,11 +591,11 @@ class ORM_Model {
 			{
 				if ($i == 0)
 				{
-					$this->db->like($nombre, $filtro, 'both');
+					$this->db->like($this->model_tabla . '.' . $nombre, $filtro, 'both');
 				}
 				else
 				{
-					$this->db->or_like($nombre, $filtro, 'both');
+					$this->db->or_like($this->model_tabla . '.' . $nombre, $filtro, 'both');
 				}
 				$i++;
 			}

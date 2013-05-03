@@ -15,10 +15,11 @@ class Rol extends ORM_Model {
 						'id' => array(
 								'tipo'   => 'id',
 							),
-						'id_app' => array(
+						'aplicacion' => array(
 								'tipo'           => 'has_one',
 								'relation'       => array(
 										'model' => 'app',
+										'join_field' => 'id_app',
 									),
 								'texto_ayuda'    => 'Aplicación a la que pertenece el rol.',
 							),
