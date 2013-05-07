@@ -382,89 +382,108 @@ class ORM_Model {
 			}
 		}
 
-		// selecciona los campos a mostrar
-		foreach ($this->model_fields as $field_name => $field_data)
-		{
-			if ($field_data->get_tipo() == 'has_one')
-			{
-				$a_rel = $field_data->get_relation();
-				$m_rel = new $a_rel['model'];
-				$nom_tabla_join = $m_rel->get_model_tabla();
-				$nom_campo1 = $this->model_tabla . '.' . (array_key_exists('join_field', $a_rel) ? $a_rel['join_field'] : $field_name);
-				$arr_id = $m_rel->get_model_campo_id();
-				$nom_campo2 = $m_rel->get_model_tabla() . '.' . $arr_id[0];
-
-				$this->db->join($m_rel->get_model_tabla(), $nom_campo1 . '=' . $nom_campo2, 'left');
-				$this->db->select($m_rel->get_model_tabla() . '.app as ' . $field_name);
-			}
-			else if ($field_data->get_tipo() == 'has_many')
-			{
-
-			}
-			else
-			{
-				$this->db->select($this->model_tabla . '.' . $field_name);
-			}
-		}
-
-		if ($tipo == 'first')
-		{
-			$rs = $this->db->get($this->model_tabla)->row_array();
-			$this->get_from_array($rs);
-
-			if ($recupera_relation)
-			{
-				$this->_recuperar_relation_fields();
-			}
-
-			return $rs;
-		}
-		else if ($tipo == 'all')
-		{
-			if ($this->model_order_by != '')
-			{
-				$this->db->order_by($this->model_order_by);
-			}
-			$rs = $this->db->get($this->model_tabla)->result_array();
-
-			foreach($rs as $reg)
-			{
-				$o = new $this->model_class();
-				$o->get_from_array($reg);
-
-				if ($recupera_relation)
-				{
-					$o->_recuperar_relation_fields();
-				}
-
-				array_push($this->model_all, $o);
-			}
-
-			return $rs;
-		}
-		else if ($tipo == 'count')
+		if ($tipo == 'count')
 		{
 			$this->db->select('count(*) as cant');
 			$rs = $this->db->get($this->model_tabla)->row_array();
 			return $rs['cant'];
 		}
-		else if ($tipo == 'list')
+		else
 		{
-			$arr_list = array();
-			if ($this->model_order_by != '')
+			// selecciona los campos a mostrar
+			foreach ($this->model_fields as $field_name => $field_data)
 			{
-				$this->db->order_by($this->model_order_by);
-			}
-			$rs = $this->db->get($this->model_tabla)->result_array();
+				if ($field_data->get_tipo() == 'has_one')
+				{
+					// recupera modelo relacionado
+					$relation_data = $field_data->get_relation();
+					$relation_model = new $relation_data['model'];
+					$nom_tabla_join = $relation_model->get_model_tabla();
+					$nom_campo1 = $this->model_tabla . '.' . (array_key_exists('join_field', $relation_data) ? $relation_data['join_field'] : $field_name);
+					$arr_id = $relation_model->get_model_campo_id();
+					$nom_campo2 = $relation_model->get_model_tabla() . '.' . $arr_id[0];
 
-			foreach($rs as $reg)
-			{
-				$o = new $this->model_class();
-				$o->get_from_array($reg);
-				$arr_list[$o->get_model_id()] = $o->__toString();
+					$this->db->select($field_data->get_full_field_name());
+					$this->db->join($relation_model->get_model_tabla(), $nom_campo1 . '=' . $nom_campo2, 'left');
+					foreach($relation_model->get_model_fields() as $relation_model_field)
+					{
+						if($relation_model_field->get_tipo() != 'has_many')
+						{
+							$this->db->select($relation_model_field->get_full_field_name() . ' as ' . $relation_model->get_model_nombre() . '#' . $relation_model_field->get_nombre_bd());
+						}
+					}
+				}
+				else if ($field_data->get_tipo() == 'has_many')
+				{
+
+				}
+				else
+				{
+					$this->db->select($field_data->get_full_field_name());
+				}
 			}
-			return $arr_list;
+
+			if ($tipo == 'first')
+			{
+				$rs = $this->db->get($this->model_tabla)->row_array();
+				$this->get_from_array($rs);
+
+				if ($recupera_relation)
+				{
+					$this->_recuperar_relation_fields();
+				}
+
+				return $rs;
+			}
+			else if ($tipo == 'all')
+			{
+				if ($this->model_order_by != '')
+				{
+					$this->db->order_by($this->model_order_by);
+				}
+				$rs = $this->db->get($this->model_tabla)->result_array();
+
+				foreach($rs as $reg)
+				{
+					$o = new $this->model_class();
+					$o->get_from_array($reg);
+
+					if ($recupera_relation)
+					{
+						$o->_recuperar_relation_fields($reg);
+					}
+
+					array_push($this->model_all, $o);
+				}
+
+				return $rs;
+			}
+			else if ($tipo == 'count')
+			{
+				$this->db->select('count(*) as cant');
+				$rs = $this->db->get($this->model_tabla)->row_array();
+				return $rs['cant'];
+			}
+			else if ($tipo == 'list')
+			{
+				$arr_list = array();
+				if ($this->model_order_by != '')
+				{
+					$this->db->order_by($this->model_order_by);
+				}
+				$rs = $this->db->get($this->model_tabla)->result_array();
+
+				foreach($rs as $reg)
+				{
+					$o = new $this->model_class();
+					$o->get_from_array($reg);
+					$arr_list[$o->get_model_id()] = $o->__toString();
+				}
+				return $arr_list;
+			}
+
 		}
+
 
 	}
 
@@ -487,7 +506,7 @@ class ORM_Model {
 	 * Recupera los mdelos dependientes (de las relaciones has_one y has_many)
 	 * @return nada
 	 */
-	private function _recuperar_relation_fields()
+	private function _recuperar_relation_fields($rs = array())
 	{
 		foreach($this->model_fields as $campo => $metadata)
 		{
@@ -497,7 +516,19 @@ class ORM_Model {
 
 				$class = $arr_rel['model'];
 				$obj = new $class();
-				$obj->find_id($this->$campo, FALSE);
+
+				$rs_relation_data = array();
+				foreach ($rs as $rs_key => $rs_value)
+				{
+					if (!(strpos($rs_key, $class . '#') === FALSE))
+					{
+						$rs_key2 = substr($rs_key, strpos($rs_key, $class . '#') + strlen($class . '#'), strlen($rs_key) - strlen($class . '#') - strpos($rs_key, $class . '#'));
+						$rs_relation_data[$rs_key2] = $rs_value;
+					}
+				}
+
+				//$obj->find_id($this->$campo, FALSE);
+				$obj->get_from_array($rs_relation_data);
 				$arr_rel['data'] = $obj;
 
 				$this->model_fields[$campo]->set_relation($arr_rel);
@@ -930,6 +961,13 @@ class ORM_Field {
 		if ($this->tipo == 'has_one')
 		{
 			$this->es_obligatorio = TRUE;
+			if (array_key_exists('relation', $param))
+			{
+				if(array_key_exists('join_field', $param['relation']))
+				{
+					$this->nombre_bd = $param['relation']['join_field'];
+				}
+			}
 		}
 
 		if ($this->tipo == 'datetime')
@@ -972,7 +1010,9 @@ class ORM_Field {
 		}
 	}
 
+	public function get_tabla_bd()         { return $this->tabla_bd; }
 	public function get_nombre_bd()        { return $this->nombre_bd; }
+	public function get_full_field_name()  { return $this->tabla_bd . '.' . $this->nombre_bd; }
 
 	public function get_es_id()            { return $this->es_id; }
 	public function get_es_unico()         { return $this->es_unico; }

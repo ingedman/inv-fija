@@ -37,7 +37,7 @@ class Inventario extends CI_Controller {
 
 		$detalle_inventario = new Detalle_inventario;
 		$detalle_inventario->get_hoja($this->id_inventario, $hoja);
-		dbg($detalle_inventario);
+		//dbg($detalle_inventario);
 
 		$nombre_inventario = $inv_activo->nombre;
 		$nombre_auditor    = $detalle_inventario->get_nombre_auditor();
